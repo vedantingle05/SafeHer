@@ -1,0 +1,80 @@
+﻿Analyzing frontend...                                           
+
+   info - Dangling library doc comment - lib\firebase_options.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\main.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\models\data_models.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\screens\alerts_screen.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\alerts_screen.dart:30:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\alerts_screen.dart:80:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\alerts_screen.dart:119:39 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\dashboard_tab.dart:1:1 - dangling_library_doc_comments
+warning - The receiver can't be 'null' because of short-circuiting, so the null-aware operator '?.' can't be used - lib\screens\dashboard_tab.dart:40:51 - invalid_null_aware_operator
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\dashboard_tab.dart:63:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\dashboard_tab.dart:65:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\dashboard_tab.dart:78:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\dashboard_tab.dart:117:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\dashboard_tab.dart:347:22 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\home_screen.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\screens\login_screen.dart:1:1 - dangling_library_doc_comments
+   info - Use 'const' with the constructor to improve performance - lib\screens\login_screen.dart:109:17 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\login_screen.dart:121:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\login_screen.dart:203:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\login_screen.dart:239:31 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\onboarding_screen.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\onboarding_screen.dart:98:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\onboarding_screen.dart:121:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\onboarding_screen.dart:146:45 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\profile_screen.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\profile_screen.dart:144:60 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:329:7 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:330:13 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:332:20 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\profile_screen.dart:350:46 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\sensor_screen.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\sensor_screen.dart:74:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\sensor_screen.dart:75:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\sensor_screen.dart:152:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\sensor_screen.dart:153:27 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\settings_screen.dart:1:1 - dangling_library_doc_comments
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:49:11 - prefer_const_constructors
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\screens\settings_screen.dart:61:17 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:69:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:119:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:120:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:121:20 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\screens\settings_screen.dart:122:25 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:123:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings_screen.dart:129:17 - prefer_const_constructors
+   info - Dangling library doc comment - lib\screens\signup_screen.dart:1:1 - dangling_library_doc_comments
+   info - Don't use 'BuildContext's across async gaps - lib\screens\signup_screen.dart:42:28 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\signup_screen.dart:97:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\signup_screen.dart:196:31 - deprecated_member_use
+   info - Dangling library doc comment - lib\screens\splash_screen.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\splash_screen.dart:103:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\splash_screen.dart:127:47 - deprecated_member_use
+   info - Dangling library doc comment - lib\services\ai_inference_service.dart:1:1 - dangling_library_doc_comments
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\services\ai_inference_service.dart:5:8 - unnecessary_import
+   info - Dangling library doc comment - lib\services\alert_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\api_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\audio_recording_service.dart:1:1 - dangling_library_doc_comments
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\services\audio_recording_service.dart:12:8 - unnecessary_import
+   info - Dangling library doc comment - lib\services\auth_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\background_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\evidence_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\permission_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\safety_monitoring_service.dart:1:1 - dangling_library_doc_comments
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\services\safety_monitoring_service.dart:9:8 - unnecessary_import
+   info - Dangling library doc comment - lib\services\sensor_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\themes\app_theme.dart:1:1 - dangling_library_doc_comments
+   info - Use 'const' with the constructor to improve performance - lib\themes\app_theme.dart:38:18 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\themes\app_theme.dart:95:18 - prefer_const_constructors
+   info - Dangling library doc comment - test\widget_test.dart:1:1 - dangling_library_doc_comments
+warning - Unused import: 'package:flutter/material.dart' - test\widget_test.dart:4:8 - unused_import
+
+flutter : 70 issues found. (ran in 5.6s)
+At line:1 char:68
++ ... \frontend'; flutter analyze --no-fatal-warnings > analysis2.txt 2>&1; ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (70 issues found. (ran in 5.6s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

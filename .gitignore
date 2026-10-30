@@ -1,0 +1,41 @@
+# Node.js
+node_modules/
+.env
+*.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# AI Models (large files)
+ai_models/data/
+ai_models/models/*.h5
+ai_models/models/*.pkl
+
+# Flutter
+frontend/.dart_tool/
+frontend/.packages
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/android/.gradle/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+*.iml
+
+# IDE & Local Tools
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+
+# Firebase
+google-services.json
+GoogleService-Info.plist
