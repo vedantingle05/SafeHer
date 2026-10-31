@@ -48,6 +48,15 @@ class SensorService extends ChangeNotifier {
   double get gyroY => _gyroY;
   double get gyroZ => _gyroZ;
   double get accelMagnitude => _accelMagnitude;
+  List<double> get sensorVector => [
+        _accelX,
+        _accelY,
+        _accelZ,
+        _gyroX,
+        _gyroY,
+        _gyroZ,
+        _accelMagnitude,
+      ];
   Position? get currentPosition => _currentPosition;
   bool get isMonitoring => _isMonitoring;
   bool get fallDetected => _fallDetected;
