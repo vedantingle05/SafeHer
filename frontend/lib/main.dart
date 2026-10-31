@@ -89,8 +89,8 @@ class SafeHerApp extends StatelessWidget {
         // screens read these; splash and onboarding do not, so they no
         // longer pay this cost on cold start.
         ChangeNotifierProvider<SensorService>(
-          create: (_) => SensorService(),
-          lazy: true,
+          create: (_) => SensorService()..startMonitoring(),
+          lazy: false,
         ),
         ChangeNotifierProvider<AlertService>(
           create: (ctx) => AlertService(apiService: ctx.read<ApiService>()),

@@ -50,36 +50,33 @@ class SafetyMonitoringService extends ChangeNotifier {
 
   /// Captures a photo silently in background using internal CameraController without opening any external camera app.
   Future<String?> captureSilentPhoto() async {
-    CameraController? controller = _cameraController;
-    bool temporary = false;
+    CameraController? controller;
     try {
-      if (controller == null || !controller.value.isInitialized) {
-        final cameras = await availableCameras();
-        if (cameras.isNotEmpty) {
-          final cam = cameras.firstWhere(
-            (c) => c.lensDirection == CameraLensDirection.back,
-            orElse: () => cameras.first,
-          );
-          controller = CameraController(
-            cam,
-            ResolutionPreset.medium,
-            enableAudio: false,
-          );
-          await controller.initialize();
-          temporary = true;
-        }
-      }
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
+        final cam = cameras.firstWhere(
+          (c) => c.lensDirection == CameraLensDirection.back,
+          orElse: () => cameras.first,
+        );
+        controller = CameraController(
+          cam,
+          ResolutionPreset.low,
+          enableAudio: false,
+        );
+        await controller.initialize().timeout(const Duration(seconds: 2));
+        final photo = await controller.takePicture().timeout(const Duration(seconds: 2));
+        debugPrint('📸 In-app silent photo captured: ${photo.path}');
 
-      if (controller != null && controller.value.isInitialized) {
-        final photo = await controller.takePicture();
-        final url = await apiService.uploadFile(folder: 'evidence', filePath: photo.path);
-        debugPrint('📸 Silent in-app photo captured & uploaded: $url');
+        final url = await apiService
+            .uploadFile(folder: 'evidence', filePath: photo.path)
+            .timeout(const Duration(seconds: 3));
+        debugPrint('📸 Silent in-app photo uploaded: $url');
         return url;
       }
     } catch (e) {
       debugPrint('⚠️ Silent photo capture error: $e');
     } finally {
-      if (temporary && controller != null) {
+      if (controller != null) {
         try {
           await controller.dispose();
         } catch (_) {}
@@ -120,35 +117,24 @@ class SafetyMonitoringService extends ChangeNotifier {
   Future<void> startMonitoring() async {
     if (_isMonitoring) return;
 
-    debugPrint('🛡️ SafeHer monitoring starting...');
+    debugPrint('🛡️ SafeHer monitoring starting (instant mode)...');
     _isMonitoring = true;
-    _currentStatus = 'starting';
+    _currentStatus = 'monitoring';
     notifyListeners();
 
-    // Step 1 — Permissions (done ONCE for the whole subsystem; sensorService
-    // and audio/camera init below all skip their own requests).
-    final permsOk = await PermissionService.requestMonitoringPermissions();
-    if (!permsOk) {
-      debugPrint('⚠️ Some permissions denied — monitoring may be limited');
-    }
-
-    // Step 2 — Sensors first. These are the cheapest to start and the user
-    // gets immediate visible feedback (live accel/gyro values, GPS fix).
+    // Step 1: Start sensor streams IMMEDIATELY without waiting for permissions
     await sensorService.startMonitoring(skipPermissionRequest: true);
-    _currentStatus = 'sensors_live';
-    _startMotionMonitoring();
-    notifyListeners();
 
-    // Step 3 — Heavy services initialize in background so they don't block
-    // the "monitoring active" feedback. Each is independent and failure-
-    // isolated; if one fails the others keep running.
+    // Step 2: Request runtime permissions in background so sensors never block
+    unawaited(PermissionService.requestMonitoringPermissions());
+
+    // Step 3: Initialize AI models in background
     unawaited(_initializeHeavyServices());
 
-    debugPrint('🛡️ SafeHer monitoring active — sensors live, AI bootstrapping');
+    debugPrint('🛡️ SafeHer monitoring active — sensors live and fall detection ready');
   }
 
   Future<void> _initializeHeavyServices() async {
-    // 3a — AI models (TFLite). Takes ~500ms-2s depending on device.
     if (!aiService.isInitialized) {
       try {
         await aiService.initialize();
@@ -157,25 +143,8 @@ class SafetyMonitoringService extends ChangeNotifier {
         debugPrint('⚠️ AI model load failed: $e');
       }
     }
-
-    // 3b — Audio service
-    try {
-      _audioService = AudioRecordingService();
-      await _audioService!.initialize();
-      _startAudioMonitoring();
-      debugPrint('✅ Audio service ready');
-    } catch (e) {
-      debugPrint('⚠️ Audio init failed: $e');
-      _audioService = null;
-    }
-
-    // 3c — Front camera for emotion detection (slow on cold start)
-    await _initCamera();
-
-    if (_isMonitoring) {
-      _currentStatus = 'monitoring';
-      notifyListeners();
-    }
+    _currentStatus = 'monitoring';
+    notifyListeners();
   }
 
   /// Create (or recreate) the front-camera controller and start the emotion

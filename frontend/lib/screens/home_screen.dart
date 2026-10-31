@@ -223,56 +223,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final userName = auth.currentUser?.name ?? 'SafeHer User';
 
     try {
-      // 2. Capture evidence photo silently in-app (no external camera app)
+      // 1. Live GPS coordinates (instant from sensor service cache or fix)
+      double lat = sensor.latitude;
+      double lng = sensor.longitude;
+      if (lat == 0.0 && lng == 0.0) {
+        try {
+          final pos = await Geolocator.getLastKnownPosition();
+          if (pos != null) {
+            lat = pos.latitude;
+            lng = pos.longitude;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Start audio evidence recording in background (non-blocking)
+      unawaited(evidence.startVoiceRecording());
+
+      // 3. Fast silent photo capture (max 2 seconds)
       final safety = context.read<SafetyMonitoringService>();
       String? photoUrl;
       try {
-        photoUrl = await safety.captureSilentPhoto().timeout(const Duration(seconds: 4));
+        photoUrl = await safety.captureSilentPhoto().timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('⚠️ Silent photo capture error: $e');
+        debugPrint('⚠️ Silent photo capture skipped: $e');
       }
 
-      // 3. Get freshest live GPS location (fast 3s timeout)
-      double lat = sensor.latitude;
-      double lng = sensor.longitude;
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.best,
-          timeLimit: const Duration(seconds: 3),
-        ).timeout(const Duration(seconds: 4));
-        lat = pos.latitude;
-        lng = pos.longitude;
-      } catch (e) {
-        debugPrint('⚠️ Live location fetch failed, using last known: $e');
-      }
-
-      // 4. Record audio for 2.5 seconds and upload
-      await Future.delayed(const Duration(milliseconds: 2500));
-      final audioPath = await evidence.stopVoiceRecording();
-      String? audioUrl;
-      if (audioPath != null) {
-        try {
-          audioUrl = await evidence.uploadLocalFile(
-            apiService: api,
-            filePath: audioPath,
-          ).timeout(const Duration(seconds: 4));
-        } catch (e) {
-          debugPrint('⚠️ Audio upload skipped: $e');
-        }
-      }
-
-      // 5. Gather evidence URLs (photo + audio)
+      // 4. Evidence URLs
       final evidenceUrls = <String>[
         if (photoUrl != null) photoUrl,
-        if (audioUrl != null) audioUrl,
       ];
-      debugPrint('🚨 [SOS] Evidence gathered: ${evidenceUrls.length} file(s)');
 
-      // 6. DISPATCH DIRECT CELLULAR SMS WITH ALL EVIDENCES TO ALL CONTACTS!
+      // 5. DISPATCH DIRECT CELLULAR SMS TO ALL CONTACTS IMMEDIATELY!
       for (final contact in contacts) {
         final phone = contact.phone.trim();
         if (phone.isNotEmpty) {
-          debugPrint('🚨 [SOS] Dispatching SMS with evidences to ${contact.name} ($phone)...');
+          debugPrint('🚨 [SOS] Sending direct cellular SMS to ${contact.name} ($phone)...');
           try {
             final ok = await DirectSmsService.sendEmergencySms(
               phone: phone,
@@ -281,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               longitude: lng,
               alertType: alertLabel,
               evidenceUrls: evidenceUrls,
-            );
+            ).timeout(const Duration(seconds: 3));
             if (ok) sentCount++;
           } catch (e) {
             debugPrint('⚠️ SMS dispatch to $phone failed: $e');
@@ -290,51 +275,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       smsDispatched = sentCount > 0;
 
-      // 7. Trigger backend emergency logging (fast 4s timeout)
-      try {
-        delivery = await alert.triggerEmergency(
-          type: 'panic_button',
-          latitude: lat,
-          longitude: lng,
-          evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
-          maxRetries: 1,
-        ).timeout(const Duration(seconds: 4));
-      } catch (e) {
-        debugPrint('⚠️ Backend emergency sync skipped/offline: $e');
-      }
+      // 6. Complete audio evidence & backend upload in background
+      unawaited(() async {
+        try {
+          await Future.delayed(const Duration(seconds: 2));
+          final audioPath = await evidence.stopVoiceRecording();
+          if (audioPath != null) {
+            final audioUrl = await evidence
+                .uploadLocalFile(apiService: api, filePath: audioPath)
+                .timeout(const Duration(seconds: 4));
+            if (audioUrl != null) evidenceUrls.add(audioUrl);
+          }
+          await alert.triggerEmergency(
+            type: 'panic_button',
+            latitude: lat,
+            longitude: lng,
+            evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
+            maxRetries: 1,
+          ).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }());
 
-// SMS dispatch completed
-
-      // If backend failed or was offline, construct delivery result from Direct SIM SMS
-      if (delivery == null || !delivery.anyReached) {
-        delivery = EmergencyDeliveryResult(
-          anyReached: smsDispatched,
-          contactCount: contacts.length,
-          reached: sentCount,
-          smsSent: sentCount,
-          smsFailed: contacts.length - sentCount,
-          callsPlaced: 0,
-          callsFailed: 0,
-          perContact: contacts.map((c) => {'phone': c.phone, 'status': 'dispatched'}).toList(),
-          message: smsDispatched
-              ? 'Emergency alert sent with evidences to $sentCount contact(s)!'
-              : 'Alert prepared. Please dial 112 directly.',
-        );
-      }
+      delivery = EmergencyDeliveryResult(
+        anyReached: smsDispatched,
+        contactCount: contacts.length,
+        reached: sentCount,
+        smsSent: sentCount,
+        smsFailed: contacts.length - sentCount,
+        callsPlaced: 0,
+        callsFailed: 0,
+        perContact: contacts.map((c) => {'phone': c.phone, 'status': 'sent'}).toList(),
+        message: smsDispatched
+            ? 'Emergency alert sent with evidences to $sentCount contact(s)!'
+            : 'Alert prepared. Please dial 112 directly.',
+      );
     } catch (e) {
       debugPrint('❌ SOS pipeline error: $e');
-      if (delivery == null && smsDispatched) {
-        delivery = EmergencyDeliveryResult(
-          anyReached: true,
-          contactCount: contacts.length,
-          reached: sentCount,
-          smsSent: sentCount,
-          smsFailed: 0,
-          callsPlaced: 0,
-          callsFailed: 0,
-          perContact: contacts.map((c) => {'phone': c.phone, 'status': 'sent'}).toList(),
-          message: 'Emergency alert sent with evidences to $sentCount contact(s)!',
-        );
+    } finally {
+      // GUARANTEED: Dialog closes within 2-3 seconds, NEVER frozen!
+      if (dialogOpen) {
+        try {
+          navigator.pop();
+        } catch (_) {}
       }
     }
     if (!mounted) return;

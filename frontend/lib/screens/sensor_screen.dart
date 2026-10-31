@@ -7,8 +7,25 @@ import '../services/sensor_service.dart';
 import '../services/safety_monitoring_service.dart';
 import '../themes/app_theme.dart';
 
-class SensorScreen extends StatelessWidget {
+class SensorScreen extends StatefulWidget {
   const SensorScreen({super.key});
+
+  @override
+  State<SensorScreen> createState() => _SensorScreenState();
+}
+
+class _SensorScreenState extends State<SensorScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final sensor = context.read<SensorService>();
+      if (!sensor.isMonitoring) {
+        sensor.startMonitoring();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +33,7 @@ class SensorScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Sensor Data')),
       body: Consumer2<SafetyMonitoringService, SensorService>(
         builder: (context, safety, sensor, _) {
-          final isMonitoring = safety.isMonitoring;
+          final isMonitoring = safety.isMonitoring || sensor.isMonitoring;
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
