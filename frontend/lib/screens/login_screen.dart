@@ -24,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   double _progressValue = 0.0;
   Timer? _progressTimer;
+  AuthService? _authService;
 
   // Reentry guard for the auth listener — Supabase fires onAuthStateChange
   // multiple times during OAuth (signedIn, tokenRefreshed, etc.).
@@ -34,8 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     // After Google OAuth deep-link returns, the session flips on; navigate then.
-    final auth = context.read<AuthService>();
-    auth.addListener(_onAuthChanged);
+    _authService = context.read<AuthService>();
+    _authService?.addListener(_onAuthChanged);
   }
 
   Future<void> _onAuthChanged() async {
@@ -206,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _progressTimer?.cancel();
-    context.read<AuthService>().removeListener(_onAuthChanged);
+    _authService?.removeListener(_onAuthChanged);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

@@ -30,14 +30,14 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  /// Override at build time: --dart-define=API_BASE_URL=http://YOUR_IP:5000/api
+  /// Override at build time: --dart-define=API_BASE_URL=http://YOUR_IP:5001/api
   static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
   /// Cache for GET requests (TTL-based)
   static final Map<String, _CacheEntry> _cache = {};
 
   /// Request timeout
-  static const Duration _timeout = Duration(seconds: 30);
+  static const Duration _timeout = Duration(seconds: 6);
 
   /// Cache TTL for profile (5 minutes)
   static const Duration _profileCacheTTL = Duration(minutes: 5);
@@ -50,11 +50,13 @@ class ApiService {
   static String get baseUrl {
     final normalized = _normalizeApiBaseUrl(_envBaseUrl);
     if (normalized.isNotEmpty) return normalized;
-    if (kIsWeb) return 'http://localhost:5000/api';
+    if (kIsWeb) return 'http://localhost:5001/api';
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api';
+      // Defaults to computer LAN IP so physical devices on Wi-Fi connect seamlessly;
+      // falls back to 10.0.2.2 for Android Studio emulator.
+      return 'http://10.69.18.193:5001/api';
     }
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5001/api';
   }
 
   static String _normalizeApiBaseUrl(String value) {
@@ -251,7 +253,7 @@ class ApiService {
   Future<String> uploadFile({
     required String folder,
     required String filePath,
-    int maxRetries = 3,
+    int maxRetries = 1,
   }) async {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {

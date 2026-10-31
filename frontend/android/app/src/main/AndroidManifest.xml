@@ -41,6 +41,7 @@
 
     <!-- Phone (optional: emergency call) -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.SEND_SMS"/>
 
     <application
         android:label="SafeHer"
@@ -112,6 +113,12 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.DIAL"/>
+        </intent>
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="whatsapp"/>
         </intent>
     </queries>
 </manifest>

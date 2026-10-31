@@ -46,6 +46,47 @@ class SafetyMonitoringService extends ChangeNotifier {
   // Audio & camera services (initialized lazily)
   AudioRecordingService? _audioService;
   CameraController? _cameraController;
+  CameraController? get cameraController => _cameraController;
+
+  /// Captures a photo silently in background using internal CameraController without opening any external camera app.
+  Future<String?> captureSilentPhoto() async {
+    CameraController? controller = _cameraController;
+    bool temporary = false;
+    try {
+      if (controller == null || !controller.value.isInitialized) {
+        final cameras = await availableCameras();
+        if (cameras.isNotEmpty) {
+          final cam = cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.back,
+            orElse: () => cameras.first,
+          );
+          controller = CameraController(
+            cam,
+            ResolutionPreset.medium,
+            enableAudio: false,
+          );
+          await controller.initialize();
+          temporary = true;
+        }
+      }
+
+      if (controller != null && controller.value.isInitialized) {
+        final photo = await controller.takePicture();
+        final url = await apiService.uploadFile(folder: 'evidence', filePath: photo.path);
+        debugPrint('📸 Silent in-app photo captured & uploaded: $url');
+        return url;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Silent photo capture error: $e');
+    } finally {
+      if (temporary && controller != null) {
+        try {
+          await controller.dispose();
+        } catch (_) {}
+      }
+    }
+    return null;
+  }
 
   // ──── State ────
   bool _isMonitoring = false;

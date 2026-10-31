@@ -2,17 +2,19 @@
  * SafeHer Backend Server
  * Production-ready with:
  * - Local JWT verification (fast)
+ * - Resilient database & storage handling
  * - Proper error handling
  * - Service health checks
  * - Process cleanup on signals
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const http = require('http');
+const path = require('path');
 
 const userRoutes = require('./routes/user.routes');
 const alertRoutes = require('./routes/alert.routes');
@@ -26,16 +28,21 @@ const HOST = process.env.HOST || '0.0.0.0';
 let server = null;
 
 // ──── Middleware ────
-app.use(helmet());
-app.use(cors({
-  origin: '*',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(
+  cors({
+    origin: '*',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(morgan('dev'));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// ──── Static files for evidence uploads ────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ──── Health Check & Status ────
 app.get('/', (_req, res) => {
@@ -85,25 +92,15 @@ app.use((_req, res) => {
 
 // ──── Startup & Validation ────
 const startServer = async () => {
-  // Validate required environment variables
-  const missing = [];
-  if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL');
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-  if (!process.env.SUPABASE_JWT_SECRET) {
-    console.warn('⚠️ SUPABASE_JWT_SECRET not set — using slow Supabase verification');
-  }
-
-  if (missing.length > 0) {
-    console.error(`❌ Missing environment variables: ${missing.join(', ')}`);
-    process.exit(1);
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('⚠️ Supabase credentials not fully configured in backend/.env — using resilient local fallback storage');
   }
 
   try {
-    // Test storage bucket
     await ensureBucket();
-    console.log('✅ Supabase storage ready');
+    console.log('✅ Storage system ready');
   } catch (e) {
-    console.error('⚠️ Storage initialization failed —', e.message);
+    console.error('⚠️ Storage initialization warning:', e.message);
   }
 
   return new Promise((resolve, reject) => {
@@ -113,8 +110,8 @@ const startServer = async () => {
       console.log(`\n${'='.repeat(50)}`);
       console.log(`🚀 SafeHer API v2.0.0`);
       console.log(`   Server: http://${HOST}:${PORT}`);
-      console.log(`   Supabase: ${process.env.SUPABASE_URL}`);
-      console.log(`   Mode: ${process.env.NODE_ENV || 'production'}`);
+      console.log(`   Health: http://${HOST}:${PORT}/health`);
+      console.log(`   Mode: ${process.env.NODE_ENV || 'development'}`);
       console.log(`${'='.repeat(50)}\n`);
       resolve(server);
     });
@@ -122,8 +119,8 @@ const startServer = async () => {
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use`);
-        console.error('   Try: lsof -i :5000  OR  netstat -ano | findstr :5000');
-        console.error('   Kill with: kill -9 <PID>  OR  taskkill /PID <PID> /F');
+        console.error('   Try: netstat -ano | findstr :5000');
+        console.error('   Kill with: taskkill /PID <PID> /F');
       } else {
         console.error('❌ Server error:', err.message);
       }

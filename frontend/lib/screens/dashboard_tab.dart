@@ -11,7 +11,8 @@ import '../themes/app_theme.dart';
 import 'settings_screen.dart';
 
 class DashboardTab extends StatelessWidget {
-  const DashboardTab({super.key});
+  final VoidCallback? onTriggerSos;
+  const DashboardTab({super.key, this.onTriggerSos});
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +21,11 @@ class DashboardTab extends StatelessWidget {
         title: const Text('SafeHer'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 28),
+            tooltip: 'Settings',
+            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
+            splashRadius: 28,
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -119,13 +124,30 @@ class DashboardTab extends StatelessWidget {
                       ),
                       if (isFallDetected) ...[
                         const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => safety.confirmSafe(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: AppColors.emergency,
-                          ),
-                          child: const Text('I\'m OK'),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () => safety.confirmSafe(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppColors.emergency,
+                              ),
+                              child: const Text('I\'m OK'),
+                            ),
+                            if (onTriggerSos != null) ...[
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: onTriggerSos,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppColors.emergency,
+                                ),
+                                icon: const Icon(Icons.send_rounded, size: 18),
+                                label: const Text('Send Evidences'),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                       if (!isMonitoring) ...[

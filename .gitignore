@@ -39,3 +39,6 @@ Thumbs.db
 # Firebase
 google-services.json
 GoogleService-Info.plist
+backend/data/
+frontend/android/build/
+frontend/android/app/build/
