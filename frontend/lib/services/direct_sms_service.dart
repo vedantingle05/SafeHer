@@ -27,6 +27,9 @@ class DirectSmsService {
     required String userName,
     required double latitude,
     required double longitude,
+    String? area,
+    String? city,
+    String? country,
     String? alertType,
     List<String>? evidenceUrls,
   }) async {
@@ -39,6 +42,11 @@ class DirectSmsService {
       evidenceText = '\nEvidence:\n' + evidenceUrls.map((u) => u).join('\n');
     }
 
+    String locationLine = '';
+    if (area != null && city != null) {
+      locationLine = 'Location: $area, $city, ${country ?? "India"}\n';
+    }
+
     // Clean GSM 7-bit ASCII format (NO UNICODE EMOJIS like 🚨 or 📸)
     // This keeps the message in standard 160-char SMS segments, preventing
     // the restrictive 70-char UCS-2 limit that causes telecom carrier drops.
@@ -46,6 +54,7 @@ class DirectSmsService {
         '[SAFEHER SOS ALERT]\n'
         '$userName needs urgent assistance!\n'
         'Incident: $typeLabel\n'
+        '$locationLine'
         'Live GPS: $mapsUrl$evidenceText\n'
         'Please check immediately or contact authorities.';
 
