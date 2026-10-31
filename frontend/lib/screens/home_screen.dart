@@ -4,6 +4,7 @@
 import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
@@ -103,8 +104,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
         content: const Text(
-          'A sudden fall or impact was detected. Are you okay?\n\n'
-          'Tap "SEND EVIDENCES" to immediately send your captured evidence and live location to your emergency contacts.',
+          'A sudden fall was detected. Are you okay?\n\n'
+          'Tap "SEND EVIDENCE" to capture front camera photo, record audio, and call your emergency contacts with your live location.',
         ),
         actions: [
           TextButton(
@@ -113,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _fallDialogActive = false;
               Navigator.of(ctx).pop();
             },
-            child: const Text('I\'m OK'),
+            child: const Text("I'm OK"),
           ),
           ElevatedButton(
             onPressed: () {
@@ -121,12 +122,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _fallDialogActive = false;
               Navigator.of(ctx).pop();
               _triggerSOS(
-                alertType: 'Fall / High Impact Detected',
+                alertType: 'Fall Detected',
                 skipConfirmation: true,
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergency),
-            child: const Text('SEND EVIDENCES'),
+            child: const Text('SEND EVIDENCE'),
           ),
         ],
       ),
@@ -201,7 +202,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // throws (camera, upload, network) — the non-dismissible progress dialog
     // is ALWAYS closed. Leaving it open would lock the screen behind a modal
     // barrier and make the app appear frozen.
-    final contacts = auth.currentUser?.emergencyContacts ?? [];
+    var contacts = auth.currentUser?.emergencyContacts ?? [];
+    if (contacts.isEmpty) {
+      try {
+        await auth.fetchProfile(allowFallback: true).timeout(const Duration(seconds: 2));
+        contacts = auth.currentUser?.emergencyContacts ?? [];
+      } catch (_) {}
+    }
     if (contacts.isEmpty) {
       if (dialogOpen) { try { navigator.pop(); } catch (_) {} }
       messenger.showSnackBar(
@@ -236,16 +243,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         } catch (_) {}
       }
 
-      // 2. Start audio evidence recording in background (non-blocking)
+      // Reverse geocode to note live location: area name, city, country
+      String area = 'Current Area';
+      String city = 'City';
+      String country = 'India';
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng).timeout(const Duration(seconds: 2));
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          area = p.subLocality?.isNotEmpty == true ? p.subLocality! : (p.name ?? 'Area');
+          city = p.locality?.isNotEmpty == true ? p.locality! : (p.subAdministrativeArea ?? 'City');
+          country = p.country ?? 'India';
+        }
+      } catch (e) {
+        debugPrint('⚠️ Reverse geocoding notice: $e');
+      }
+
+      final addressMap = {
+        'area': area,
+        'city': city,
+        'country': country,
+        'formatted': '$area, $city, $country',
+      };
+
+      // 2. Start audio recording simultaneously in background
       unawaited(evidence.startVoiceRecording());
 
-      // 3. Fast silent photo capture (max 2 seconds)
+      // 3. Fast front-camera photo capture
       final safety = context.read<SafetyMonitoringService>();
       String? photoUrl;
       try {
         photoUrl = await safety.captureSilentPhoto().timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('⚠️ Silent photo capture skipped: $e');
+        debugPrint('⚠️ Front camera photo capture skipped: $e');
       }
 
       // 4. Evidence URLs
@@ -264,9 +294,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               userName: userName,
               latitude: lat,
               longitude: lng,
+              area: area,
+              city: city,
+              country: country,
               alertType: alertLabel,
               evidenceUrls: evidenceUrls,
-            ).timeout(const Duration(seconds: 3));
+            );
             if (ok) sentCount++;
           } catch (e) {
             debugPrint('⚠️ SMS dispatch to $phone failed: $e');
@@ -275,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       smsDispatched = sentCount > 0;
 
-      // 6. Complete audio evidence & backend upload in background
+      // 6. Complete audio evidence & backend emergency call + broadcast in background
       unawaited(() async {
         try {
           await Future.delayed(const Duration(seconds: 2));
@@ -287,12 +320,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (audioUrl != null) evidenceUrls.add(audioUrl);
           }
           await alert.triggerEmergency(
-            type: 'panic_button',
+            type: alertType == 'Fall Detected' ? 'fall' : 'panic_button',
             latitude: lat,
             longitude: lng,
+            address: addressMap,
             evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
             maxRetries: 1,
-          ).timeout(const Duration(seconds: 4));
+          ).timeout(const Duration(seconds: 5));
         } catch (_) {}
       }());
 

@@ -18,6 +18,7 @@ import 'api_service.dart';
 import 'evidence_service.dart';
 import 'audio_recording_service.dart';
 import 'permission_service.dart';
+import 'direct_sms_service.dart';
 
 /// Configuration thresholds for triggering alerts
 class SafetyThresholds {
@@ -55,7 +56,7 @@ class SafetyMonitoringService extends ChangeNotifier {
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
         final cam = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.back,
+          (c) => c.lensDirection == CameraLensDirection.front,
           orElse: () => cameras.first,
         );
         controller = CameraController(
@@ -198,6 +199,11 @@ class SafetyMonitoringService extends ChangeNotifier {
   /// otherwise hold them and deadlock the renderer on resume.
   Future<void> handleAppPaused() async {
     if (!_isMonitoring) return;
+    if (sensorService.fallDetected) {
+      debugPrint('⚠️ High-rate sensor fall confirmed!');
+      _handleDangerDetected('fall', 0.95);
+      return;
+    }
     debugPrint('⏸️ App paused — releasing camera');
     _appPaused = true;
     await _disposeCamera();
@@ -242,6 +248,11 @@ class SafetyMonitoringService extends ChangeNotifier {
 
   void _checkMotion() {
     if (!_isMonitoring) return;
+    if (sensorService.fallDetected) {
+      debugPrint('⚠️ High-rate sensor fall confirmed!');
+      _handleDangerDetected('fall', 0.95);
+      return;
+    }
 
     final magnitude = sensorService.accelMagnitude;
 
@@ -437,7 +448,32 @@ class SafetyMonitoringService extends ChangeNotifier {
       debugPrint('⚠️ Live GPS failed, using last known: $e');
     }
 
-    // 3. Trigger full emergency (alert + SMS + push to contacts)
+    // 3. Dispatch Direct SIM SMS to registered emergency contacts
+    try {
+      final profileRes = await apiService.get('/user/profile').timeout(const Duration(seconds: 2));
+      final contactsData = profileRes['data']?['emergencyContacts'] as List<dynamic>?;
+      if (contactsData != null && contactsData.isNotEmpty) {
+        final userName = profileRes['data']?['name'] as String? ?? 'SafeHer User';
+        for (final item in contactsData) {
+          final phone = item['phone']?.toString().trim() ?? '';
+          if (phone.isNotEmpty) {
+            debugPrint('🚨 [Automatic Alert] Sending direct SIM SMS to $phone...');
+            unawaited(DirectSmsService.sendEmergencySms(
+              phone: phone,
+              userName: userName,
+              latitude: lat,
+              longitude: lng,
+              alertType: type == 'fall' ? 'Fall / High Impact Detected' : (type == 'scream' ? 'Scream / Audio Distress Detected' : 'Emergency Distress Alert'),
+              evidenceUrls: evidenceUrls,
+            ));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Direct SMS dispatch in danger handler notice: $e');
+    }
+
+    // 4. Trigger full backend emergency (cloud record + notification)
     final result = await alertService.triggerEmergency(
       type: type,
       latitude: lat,

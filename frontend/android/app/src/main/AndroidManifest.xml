@@ -42,6 +42,7 @@
     <!-- Phone (optional: emergency call) -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
     <uses-permission android:name="android.permission.SEND_SMS"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
     <application
         android:label="SafeHer"
@@ -119,6 +120,14 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="whatsapp"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="sms"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="smsto"/>
         </intent>
     </queries>
 </manifest>

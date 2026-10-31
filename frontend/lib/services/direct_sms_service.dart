@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 class DirectSmsService {
   static const _channel = MethodChannel('com.safeher.app/sms');
 
-  /// Clean phone number to national/international cellular format
+  /// Clean phone number to national cellular format
   static String formatPhone(String rawPhone) {
     var digits = rawPhone.replaceAll(RegExp(r'\D'), '');
     if (digits.length == 10) {
@@ -36,16 +36,20 @@ class DirectSmsService {
 
     String evidenceText = '';
     if (evidenceUrls != null && evidenceUrls.isNotEmpty) {
-      evidenceText = '\n\n📸 Evidences:\n' +
-          evidenceUrls.map((u) => '• $u').join('\n');
+      evidenceText = '\nEvidence:\n' + evidenceUrls.map((u) => u).join('\n');
     }
 
+    // Clean GSM 7-bit ASCII format (NO UNICODE EMOJIS like 🚨 or 📸)
+    // This keeps the message in standard 160-char SMS segments, preventing
+    // the restrictive 70-char UCS-2 limit that causes telecom carrier drops.
     final message =
-        '🚨 [SafeHer SOS Alert] 🚨\n'
+        '[SAFEHER SOS ALERT]\n'
         '$userName needs urgent assistance!\n'
         'Incident: $typeLabel\n'
-        'Live Location: $mapsUrl$evidenceText\n'
-        'Please send help or contact authorities immediately.';
+        'Live GPS: $mapsUrl$evidenceText\n'
+        'Please check immediately or contact authorities.';
+
+    bool sentDirectly = false;
 
     try {
       // 1. Request SMS permission at runtime
@@ -62,28 +66,46 @@ class DirectSmsService {
         });
 
         if (res == true) {
-          debugPrint('✅ Direct SIM SMS sent successfully via native telephony');
+          debugPrint('✅ Direct SIM SMS sent successfully via native telephony to $targetPhone');
+          sentDirectly = true;
           return true;
         }
+      } else {
+        debugPrint('⚠️ SMS permission denied by user; falling back to native composer');
       }
     } catch (e) {
       debugPrint('⚠️ Direct SIM SMS channel exception: $e');
     }
 
-    // 2. Fallback: If device lacks active SIM / telephony (e.g. Wi-Fi tablet),
-    // launch the native SMS app composer with pre-filled target and evidence text.
+    // 2. Immediate Native Composer Fallback:
+    // If carrier blocks background A2P or user did not grant background SMS permission,
+    // open the device's native SMS app with pre-filled contact and alert body.
     try {
-      debugPrint('📱 Launching native SMS composer fallback to $targetPhone...');
-      final smsUri = Uri.parse('sms:$targetPhone?body=${Uri.encodeComponent(message)}');
-      if (await canLaunchUrl(smsUri)) {
-        await launchUrl(smsUri, mode: LaunchMode.externalApplication);
+      debugPrint('📱 Launching native SMS composer fallback for $targetPhone...');
+      final dynamic res = await _channel.invokeMethod('openSmsApp', {
+        'phone': targetPhone,
+        'message': message,
+      });
+      if (res == true) return true;
+    } catch (e) {
+      debugPrint('⚠️ MethodChannel openSmsApp fallback error: $e');
+    }
+
+    // 3. Secondary url_launcher fallback
+    try {
+      final uri = Uri(
+        scheme: 'smsto',
+        path: targetPhone,
+        queryParameters: {'body': message},
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
         return true;
       }
     } catch (e) {
-      debugPrint('❌ SMS composer fallback failed: $e');
+      debugPrint('❌ url_launcher SMS fallback failed: $e');
     }
 
-    return false;
+    return sentDirectly;
   }
 }
-

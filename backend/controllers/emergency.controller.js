@@ -49,6 +49,23 @@ exports.triggerEmergency = async (req, res) => {
     const alertLabel = ALERT_TYPE_LABELS[type] || 'Emergency SOS Alert';
     const userName = user.name || (user.email ? user.email.split('@')[0] : 'SafeHer User');
 
+    // Auto-resolve area, city, country if not passed
+    if (!location.address && lat !== 0 && lng !== 0) {
+      try {
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+          headers: { 'User-Agent': 'SafeHer-Emergency/2.0' },
+          signal: AbortSignal.timeout(2000),
+        });
+        const geoData = await geoRes.json();
+        const a = geoData.address || {};
+        location.address = {
+          area: a.suburb || a.neighbourhood || a.residential || a.road || 'Local Area',
+          city: a.city || a.town || a.village || a.county || 'City',
+          country: a.country || 'India',
+        };
+      } catch (_) {}
+    }
+
     const audioUrl = evidenceUrls.find((u) => u.endsWith('.aac') || u.endsWith('.m4a') || u.endsWith('.wav') || u.endsWith('.mp3')) || null;
 
     // Record alert in database
@@ -120,6 +137,7 @@ exports.triggerEmergency = async (req, res) => {
           to: contact.phone,
           userName,
           alertLabel,
+          location,
           audioUrl,
           mapsLink,
         });

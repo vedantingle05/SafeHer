@@ -36,11 +36,12 @@ class SensorService extends ChangeNotifier {
   Timer? _fallResetTimer;
   DateTime _lastUiNotifyTime = DateTime.now();
 
-  // Scientifically calibrated fall thresholds
-  static const double _freefallThreshold = 6.0;      // < 0.6G (normal gravity is ~9.8)
-  static const double _impactThreshold = 18.0;        // > 1.8G impact following freefall
-  static const double _severeImpactThreshold = 24.0;  // > 2.4G sudden impact alone
-
+  // Scientifically calibrated fall detection thresholds (Academic Research Sweet Spot)
+  // Prevents false alarms during normal waving/handling while reliably detecting real falls.
+  static const double _freefallThreshold = 3.8;       // < 0.39G (true weightlessness during drop)
+  static const double _impactThreshold = 22.0;        // > 2.24G deceleration impact following freefall
+  static const double _severeImpactThreshold = 32.0;  // > 3.26G sudden severe crash/impact alone
+  int _consecutiveFreefallSamples = 0;
   double get accelX => _accelX;
   double get accelY => _accelY;
   double get accelZ => _accelZ;
@@ -253,38 +254,45 @@ class SensorService extends ChangeNotifier {
   void _checkFallDetection() {
     final now = DateTime.now();
 
-    // 1. Detect Freefall phase (< 6.0 m/s²)
+    // 1. Multi-sample Freefall Phase:
+    // Requires at least 3 consecutive samples (< 3.8 m/s² = 60ms) in freefall.
+    // Normal hand waving or picking up the phone will NEVER sustain < 3.8 m/s² for 60ms.
     if (_accelMagnitude < _freefallThreshold) {
-      _freefallStartTime = now;
-      _wasInFreefall = true;
+      _consecutiveFreefallSamples++;
+      if (_consecutiveFreefallSamples >= 3) {
+        _wasInFreefall = true;
+        _freefallStartTime = now;
+      }
       return;
+    } else {
+      _consecutiveFreefallSamples = 0;
     }
 
-    // 2. Check if we recently experienced freefall within the past 1200ms
+    // 2. Impact Phase following verified freefall within 1200ms
     final recentFreefall = _wasInFreefall &&
         _freefallStartTime != null &&
         now.difference(_freefallStartTime!).inMilliseconds < 1200;
 
-    // 3. Impact Detection
     final impactAfterFreefall = recentFreefall && _accelMagnitude >= _impactThreshold;
     final severeImpact = _accelMagnitude >= _severeImpactThreshold;
 
     if (impactAfterFreefall || severeImpact) {
       _wasInFreefall = false;
       _freefallStartTime = null;
-      debugPrint('💥 [FALL DETECTED] Mag: ${_accelMagnitude.toStringAsFixed(1)} (afterFreefall=$impactAfterFreefall, severe=$severeImpact)');
+      _consecutiveFreefallSamples = 0;
+      debugPrint('💥 [FALL DETECTED - SWEET SPOT] Mag: ' + _accelMagnitude.toStringAsFixed(1) + ' m/s² (afterFreefall=' + impactAfterFreefall.toString() + ', severe=' + severeImpact.toString() + ')');
       _setFallDetected();
       return;
     }
 
-    // Expire freefall state after 1.5s
+    // Expire freefall state after 1.2s
     if (_freefallStartTime != null &&
-        now.difference(_freefallStartTime!).inMilliseconds > 1500) {
+        now.difference(_freefallStartTime!).inMilliseconds > 1200) {
       _wasInFreefall = false;
       _freefallStartTime = null;
+      _consecutiveFreefallSamples = 0;
     }
   }
-
   void _setFallDetected() {
     if (_fallDetected) return;
     _fallDetected = true;

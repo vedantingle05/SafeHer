@@ -146,6 +146,7 @@ class AlertService extends ChangeNotifier {
     required String type,
     required double latitude,
     required double longitude,
+    Map<String, dynamic>? address,
     double? confidence,
     List<String>? evidenceUrls,
     int maxRetries = 2,
@@ -158,6 +159,7 @@ class AlertService extends ChangeNotifier {
       'location': {
         'latitude': latitude,
         'longitude': longitude,
+        if (address != null) 'address': address,
       },
       if (confidence != null) 'confidence': confidence,
       if (evidenceUrls != null && evidenceUrls.isNotEmpty)
