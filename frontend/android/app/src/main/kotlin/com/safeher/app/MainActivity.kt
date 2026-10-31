@@ -47,31 +47,17 @@ class MainActivity: FlutterActivity() {
 
                     try {
                         val smsManager = getBestSmsManager()
+                        val target = if (phone.length == 10 && !phone.startsWith("+")) "+91$phone" else phone
                         val parts = smsManager.divideMessage(message)
-                        Log.d(TAG, "Dispatching SMS to $phone in ${parts.size} part(s)")
+                        Log.d(TAG, "Dispatching cellular SMS to $target in ${parts.size} part(s)")
 
-                        // Try sending directly
                         if (parts.size > 1) {
-                            smsManager.sendMultipartTextMessage(phone, null, parts, null, null)
+                            smsManager.sendMultipartTextMessage(target, null, parts, null, null)
                         } else {
-                            smsManager.sendTextMessage(phone, null, message, null, null)
+                            smsManager.sendTextMessage(target, null, message, null, null)
                         }
 
-                        // Also attempt 10-digit national format if phone was formatted with +91
-                        val clean10 = phone.replace("+91", "").trim()
-                        if (clean10.length == 10 && clean10 != phone) {
-                            try {
-                                if (parts.size > 1) {
-                                    smsManager.sendMultipartTextMessage(clean10, null, parts, null, null)
-                                } else {
-                                    smsManager.sendTextMessage(clean10, null, message, null, null)
-                                }
-                            } catch (e2: Exception) {
-                                Log.w(TAG, "10-digit retry notice: ${e2.message}")
-                            }
-                        }
-
-                        Log.d(TAG, "✅ SMS successfully handed to cellular baseband for $phone")
+                        Log.d(TAG, "✅ SMS successfully dispatched to baseband for $target")
                         result.success(true)
                     } catch (e: Exception) {
                         Log.e(TAG, "❌ Failed to send SMS via SmsManager: ${e.message}", e)
@@ -82,9 +68,10 @@ class MainActivity: FlutterActivity() {
                     val phone = call.argument<String>("phone") ?: ""
                     val message = call.argument<String>("message") ?: ""
                     try {
-                        val uri = Uri.parse("smsto:${Uri.encode(phone)}")
+                        val uri = Uri.fromParts("smsto", phone, null)
                         val intent = Intent(Intent.ACTION_SENDTO, uri).apply {
                             putExtra("sms_body", message)
+                            putExtra(Intent.EXTRA_TEXT, message)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         startActivity(intent)

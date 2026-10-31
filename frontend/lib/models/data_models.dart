@@ -101,20 +101,56 @@ class AlertModel {
   });
 
   factory AlertModel.fromJson(Map<String, dynamic> json) {
+    final rawEvidences = json['evidenceUrls'] ?? json['evidence_urls'];
+    List<String> evidences = [];
+    if (rawEvidences is List) {
+      evidences = rawEvidences.map((e) => e.toString()).toList();
+    }
+
+    final rawCreatedAt = json['createdAt'] ?? json['created_at'];
+    DateTime created;
+    if (rawCreatedAt != null) {
+      try {
+        created = DateTime.parse(rawCreatedAt.toString());
+      } catch (_) {
+        created = DateTime.now();
+      }
+    } else {
+      created = DateTime.now();
+    }
+
+    final rawResolvedAt = json['resolvedAt'] ?? json['resolved_at'];
+    DateTime? resolved;
+    if (rawResolvedAt != null) {
+      try {
+        resolved = DateTime.parse(rawResolvedAt.toString());
+      } catch (_) {}
+    }
+
     return AlertModel(
       id: json['id'] ?? json['_id'] ?? '',
-      userId: json['userId'] ?? '',
+      userId: json['userId'] ?? json['user_id'] ?? '',
       type: json['type'] ?? '',
       location: AlertLocation.fromJson(json['location'] ?? {}),
       status: json['status'] ?? 'triggered',
       confidence: (json['confidence'] as num?)?.toDouble(),
-      evidenceUrls: List<String>.from(json['evidenceUrls'] ?? []),
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      resolvedAt: json['resolvedAt'] != null
-          ? DateTime.parse(json['resolvedAt'])
-          : null,
+      evidenceUrls: evidences,
+      createdAt: created,
+      resolvedAt: resolved,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'userId': userId,
+    'type': type,
+    'location': location.toJson(),
+    'status': status,
+    'confidence': confidence,
+    'evidenceUrls': evidenceUrls,
+    'createdAt': createdAt.toIso8601String(),
+    if (resolvedAt != null) 'resolvedAt': resolvedAt!.toIso8601String(),
+  };
 
   /// Human-readable alert type
   String get typeLabel {

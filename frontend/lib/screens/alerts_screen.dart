@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/alert_service.dart';
+import 'evidence_screen.dart';
 import '../models/data_models.dart';
 import '../themes/app_theme.dart';
 
@@ -14,7 +15,19 @@ class AlertsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Alert History')),
+      appBar: AppBar(
+        title: const Text('Alert History'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_special_outlined),
+            tooltip: 'Evidence Vault',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EvidenceScreen()),
+            ),
+          ),
+        ],
+      ),
       body: Consumer<AlertService>(
         builder: (context, alertService, _) {
           if (alertService.isLoading && alertService.alerts.isEmpty) {
@@ -203,6 +216,27 @@ class _AlertCard extends StatelessWidget {
                   label: const Text('Open in Google Maps'),
                 ),
               ),
+              if (alert.evidenceUrls.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const EvidenceScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.folder_special_rounded),
+                    label: Text('View ${alert.evidenceUrls.length} Evidence File(s) in Vault'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
 
               // Resolve / False Alarm buttons
               if (alert.status == 'triggered' || alert.status == 'notified') ...[

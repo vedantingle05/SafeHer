@@ -75,9 +75,8 @@ class DirectSmsService {
         });
 
         if (res == true) {
-          debugPrint('✅ Direct SIM SMS sent successfully via native telephony to $targetPhone');
+          debugPrint('✅ Direct SIM SMS dispatched to baseband for $targetPhone');
           sentDirectly = true;
-          return true;
         }
       } else {
         debugPrint('⚠️ SMS permission denied by user; falling back to native composer');
@@ -99,6 +98,8 @@ class DirectSmsService {
     } catch (e) {
       debugPrint('⚠️ MethodChannel openSmsApp fallback error: $e');
     }
+
+    if (sentDirectly) return true;
 
     // 3. Secondary url_launcher fallback
     try {

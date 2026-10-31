@@ -111,6 +111,11 @@ const db = {
       created_at: new Date().toISOString(),
     };
 
+    // Always persist to resilient local DB so records are never lost
+    const local = readLocalDb();
+    local.alerts.unshift(newAlert);
+    writeLocalDb(local);
+
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -120,38 +125,46 @@ const db = {
           .single();
         if (!error && data) return data;
       } catch (err) {
-        console.warn('⚠️ Supabase createAlert error, saving locally:', err.message);
+        console.warn('⚠️ Supabase createAlert error:', err.message);
       }
     }
 
-    const local = readLocalDb();
-    local.alerts.unshift(newAlert);
-    writeLocalDb(local);
     return newAlert;
   },
 
   async getAlerts(userId, { page = 1, limit = 20 } = {}) {
+    const local = readLocalDb();
+    const map = new Map();
+
+    // 1. Add local alerts unconditionally
+    for (const a of local.alerts || []) {
+      map.set(a.id, a);
+    }
+
+    // 2. Merge Supabase alerts if available
     if (supabase) {
       try {
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
-        const { data, count, error } = await supabase
+        const { data, error } = await supabase
           .from('alerts')
-          .select('*', { count: 'exact' })
+          .select('*')
           .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .range(from, to);
-        if (!error && data) return { alerts: data, total: count || data.length };
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          for (const sAlert of data) {
+            map.set(sAlert.id, sAlert);
+          }
+        }
       } catch (err) {
-        console.warn('⚠️ Supabase getAlerts error, reading locally:', err.message);
+        console.warn('⚠️ Supabase getAlerts warning:', err.message);
       }
     }
 
-    const local = readLocalDb();
-    const userAlerts = local.alerts.filter((a) => a.user_id === userId);
+    const merged = Array.from(map.values());
+    merged.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
     const startIndex = (page - 1) * limit;
-    const paginated = userAlerts.slice(startIndex, startIndex + limit);
-    return { alerts: paginated, total: userAlerts.length };
+    const paginated = merged.slice(startIndex, startIndex + limit);
+    return { alerts: paginated, total: merged.length };
   },
 
   async getAlertById(alertId) {

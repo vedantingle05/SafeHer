@@ -273,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final safety = context.read<SafetyMonitoringService>();
       String? photoUrl;
       try {
-        photoUrl = await safety.captureSilentPhoto().timeout(const Duration(seconds: 2));
+        photoUrl = await safety.captureSilentPhoto().timeout(const Duration(seconds: 4));
       } catch (e) {
         debugPrint('⚠️ Front camera photo capture skipped: $e');
       }
@@ -326,7 +326,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             address: addressMap,
             evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
             maxRetries: 1,
-          ).timeout(const Duration(seconds: 5));
+          ).timeout(const Duration(seconds: 10));
+          await alert.fetchAlerts();
         } catch (_) {}
       }());
 

@@ -5,7 +5,9 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api_service.dart';
+import 'dart:async';
 import 'audio_recording_service.dart';
+import 'evidence_vault_service.dart';
 
 class EvidenceCaptureService {
   final _picker = ImagePicker();
@@ -45,7 +47,11 @@ class EvidenceCaptureService {
   }
 
   Future<String?> stopVoiceRecording() async {
-    return _audio.stopEvidenceRecording();
+    final tempPath = await _audio.stopEvidenceRecording();
+    if (tempPath != null) {
+      return await EvidenceVaultService.saveAudio(tempPath);
+    }
+    return null;
   }
 
   Future<String?> uploadLocalFile({
@@ -73,12 +79,14 @@ class EvidenceCaptureService {
     if (cameraController != null && cameraController.value.isInitialized) {
       try {
         final photo = await cameraController.takePicture();
-        final url = await apiService.uploadFile(
-          folder: 'evidence',
-          filePath: photo.path,
-        );
-        urls.add(url);
-        debugPrint('📸 Emergency photo captured: $url');
+        final permanent = await EvidenceVaultService.savePhoto(photo.path);
+        urls.add(permanent);
+        unawaited(() async {
+          try {
+            await apiService.uploadFile(folder: 'evidence', filePath: permanent);
+          } catch (_) {}
+        }());
+        debugPrint('📸 Emergency photo saved: $permanent');
       } catch (e) {
         debugPrint('⚠️ Emergency photo failed: $e');
       }

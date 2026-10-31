@@ -19,6 +19,7 @@ import 'evidence_service.dart';
 import 'audio_recording_service.dart';
 import 'permission_service.dart';
 import 'direct_sms_service.dart';
+import 'evidence_vault_service.dart';
 
 /// Configuration thresholds for triggering alerts
 class SafetyThresholds {
@@ -34,7 +35,27 @@ class SafetyThresholds {
   static const Duration cooldownPeriod = Duration(minutes: 2);
   static const Duration motionCheckInterval = Duration(milliseconds: 500);
   static const Duration audioCheckInterval = Duration(seconds: 3);
-  static const Duration emotionCheckInterval = Duration(seconds: 5);
+  static const Duration emotionCheckInterval = Duration(seconds: 8);
+}
+
+
+Float32List? _preprocessFaceImage(Uint8List bytes) {
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return null;
+    final resized = img.copyResize(decoded, width: 48, height: 48);
+    final grayscale = img.grayscale(resized);
+    final pixels = Float32List(48 * 48);
+    for (int y = 0; y < 48; y++) {
+      for (int x = 0; x < 48; x++) {
+        final pixel = grayscale.getPixel(x, y);
+        pixels[y * 48 + x] = img.getLuminance(pixel) / 255.0;
+      }
+    }
+    return pixels;
+  } catch (_) {
+    return null;
+  }
 }
 
 class SafetyMonitoringService extends ChangeNotifier {
@@ -49,39 +70,80 @@ class SafetyMonitoringService extends ChangeNotifier {
   CameraController? _cameraController;
   CameraController? get cameraController => _cameraController;
 
-  /// Captures a photo silently in background using internal CameraController without opening any external camera app.
+  /// Captures a photo silently using CameraController and archives it permanently in SafeHerVault.
+  /// Returns the permanent file path immediately for 0ms local UI display, while uploading to cloud in background.
   Future<String?> captureSilentPhoto() async {
-    CameraController? controller;
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isNotEmpty) {
-        final cam = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
-          orElse: () => cameras.first,
-        );
-        controller = CameraController(
-          cam,
-          ResolutionPreset.low,
-          enableAudio: false,
-        );
-        await controller.initialize().timeout(const Duration(seconds: 2));
-        final photo = await controller.takePicture().timeout(const Duration(seconds: 2));
-        debugPrint('📸 In-app silent photo captured: ${photo.path}');
+    if (_isCapturingEvidence) {
+      debugPrint('⚠️ Evidence capture already in progress');
+      return null;
+    }
+    _isCapturingEvidence = true;
 
-        final url = await apiService
-            .uploadFile(folder: 'evidence', filePath: photo.path)
-            .timeout(const Duration(seconds: 3));
-        debugPrint('📸 Silent in-app photo uploaded: $url');
-        return url;
-      }
-    } catch (e) {
-      debugPrint('⚠️ Silent photo capture error: $e');
-    } finally {
-      if (controller != null) {
+    try {
+      // 1. If active front camera is ready, capture directly (<150ms)
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
         try {
-          await controller.dispose();
-        } catch (_) {}
+          final photo = await _cameraController!.takePicture();
+          debugPrint('📸 Live front camera snapshot taken: ${photo.path}');
+
+          // Save permanently to device vault
+          final permanentPath = await EvidenceVaultService.savePhoto(photo.path);
+
+          // Asynchronously sync to cloud backend (non-blocking)
+          unawaited(() async {
+            try {
+              final remoteUrl = await apiService
+                  .uploadFile(folder: 'evidence', filePath: permanentPath)
+                  .timeout(const Duration(seconds: 6));
+              debugPrint('☁️ Evidence photo synced to cloud: $remoteUrl');
+            } catch (e) {
+              debugPrint('ℹ️ Evidence photo archived locally (cloud upload deferred): $e');
+            }
+          }());
+
+          return permanentPath;
+        } catch (e) {
+          debugPrint('⚠️ Live camera capture exception: $e');
+        }
       }
+
+      // 2. Fallback camera controller
+      CameraController? controller;
+      try {
+        final cameras = await availableCameras();
+        if (cameras.isNotEmpty) {
+          final cam = cameras.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.front,
+            orElse: () => cameras.first,
+          );
+          controller = CameraController(
+            cam,
+            ResolutionPreset.low,
+            enableAudio: false,
+          );
+          await controller.initialize().timeout(const Duration(seconds: 3));
+          final photo = await controller.takePicture().timeout(const Duration(seconds: 3));
+          final permanentPath = await EvidenceVaultService.savePhoto(photo.path);
+
+          unawaited(() async {
+            try {
+              await apiService.uploadFile(folder: 'evidence', filePath: permanentPath);
+            } catch (_) {}
+          }());
+
+          return permanentPath;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Fallback camera error: $e');
+      } finally {
+        if (controller != null) {
+          try {
+            await controller.dispose();
+          } catch (_) {}
+        }
+      }
+    } finally {
+      _isCapturingEvidence = false;
     }
     return null;
   }
@@ -89,6 +151,8 @@ class SafetyMonitoringService extends ChangeNotifier {
   // ──── State ────
   bool _isMonitoring = false;
   bool _appPaused = false;
+  bool _isCapturingEvidence = false;
+  bool _isProcessingEmotion = false;
   DateTime? _lastAlertTime;
   String _currentStatus = 'idle';
   Map<String, dynamic>? _lastEmotionResult;
@@ -141,11 +205,30 @@ class SafetyMonitoringService extends ChangeNotifier {
         await aiService.initialize();
         debugPrint('✅ AI models loaded');
       } catch (e) {
-        debugPrint('⚠️ AI model load failed: $e');
+        debugPrint('⚠️ AI model load failed: ');
       }
     }
+
+    if (_audioService == null) {
+      try {
+        _audioService = AudioRecordingService();
+        _startAudioMonitoring();
+        debugPrint('✅ Audio monitoring started');
+      } catch (e) {
+        debugPrint('⚠️ Audio monitoring start error: ');
+      }
+    }
+
+    _startMotionMonitoring();
+    await _initCamera();
+
     _currentStatus = 'monitoring';
     notifyListeners();
+  }
+
+  Future<void> initCameraManually() async {
+    debugPrint('📷 Manual camera start requested');
+    await _initCamera();
   }
 
   /// Create (or recreate) the front-camera controller and start the emotion
@@ -173,11 +256,13 @@ class SafetyMonitoringService extends ChangeNotifier {
       );
       await controller.initialize();
       _cameraController = controller;
+      notifyListeners();
       _startEmotionMonitoring();
       debugPrint('✅ Camera ready for emotion detection');
     } catch (e) {
       debugPrint('⚠️ Camera init failed (emotion detection disabled): $e');
       _cameraController = null;
+      notifyListeners();
     }
   }
 
@@ -185,6 +270,7 @@ class SafetyMonitoringService extends ChangeNotifier {
     _emotionTimer?.cancel();
     final cam = _cameraController;
     _cameraController = null;
+    notifyListeners();
     if (cam != null) {
       try {
         await cam.dispose();

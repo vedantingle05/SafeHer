@@ -9,6 +9,8 @@ import '../services/safety_monitoring_service.dart';
 import '../services/alert_service.dart';
 import '../themes/app_theme.dart';
 import 'settings_screen.dart';
+import 'evidence_screen.dart';
+import 'package:camera/camera.dart';
 
 class DashboardTab extends StatelessWidget {
   final VoidCallback? onTriggerSos;
@@ -20,6 +22,14 @@ class DashboardTab extends StatelessWidget {
       appBar: AppBar(
         title: const Text('SafeHer'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_special_outlined, size: 26),
+            tooltip: 'Evidence Vault',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EvidenceScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 28),
             tooltip: 'Settings',
@@ -124,8 +134,10 @@ class DashboardTab extends StatelessWidget {
                       ),
                       if (isFallDetected) ...[
                         const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
                           children: [
                             ElevatedButton(
                               onPressed: () => safety.confirmSafe(),
@@ -135,8 +147,7 @@ class DashboardTab extends StatelessWidget {
                               ),
                               child: const Text('I\'m OK'),
                             ),
-                            if (onTriggerSos != null) ...[
-                              const SizedBox(width: 12),
+                            if (onTriggerSos != null)
                               ElevatedButton.icon(
                                 onPressed: onTriggerSos,
                                 style: ElevatedButton.styleFrom(
@@ -146,7 +157,6 @@ class DashboardTab extends StatelessWidget {
                                 icon: const Icon(Icons.send_rounded, size: 18),
                                 label: const Text('Send Evidences'),
                               ),
-                            ],
                           ],
                         ),
                       ],
@@ -211,6 +221,275 @@ class DashboardTab extends StatelessWidget {
                   color: AppColors.primary,
                 ),
               ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // AI Facial Emotion Monitor & Front Camera Card
+            Consumer<SafetyMonitoringService>(
+              builder: (ctx, safety, _) {
+                final cam = safety.cameraController;
+                final isCamReady = cam != null && cam.value.isInitialized;
+                final emotion = safety.lastEmotionResult;
+                final emotionLabel = emotion?['label']?.toString().toUpperCase() ?? 'DETECTING...';
+                final confidence = emotion != null
+                    ? ((emotion['confidence'] as double) * 100).toStringAsFixed(0)
+                    : '--';
+                final isDistress = emotion?['isDistress'] == true;
+
+                return Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Row(
+                                children: [
+                                  Icon(Icons.face_retouching_natural_rounded, color: AppColors.primary, size: 22),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'AI Emotion HUD',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDistress
+                                    ? AppColors.emergency.withOpacity(0.15)
+                                    : AppColors.safe.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                isDistress ? '⚠️ DISTRESS' : '✅ NORMAL',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDistress ? AppColors.emergency : AppColors.safe,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (isCamReady) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 190,
+                              width: double.infinity,
+                              color: Colors.black,
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      clipBehavior: Clip.hardEdge,
+                                      child: SizedBox(
+                                        width: cam.value.previewSize != null
+                                            ? cam.value.previewSize!.height
+                                            : 1,
+                                        height: cam.value.previewSize != null
+                                            ? cam.value.previewSize!.width
+                                            : 1,
+                                        child: CameraPreview(cam),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.75),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'Emotion: $emotionLabel ($confidence%)',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              'Live',
+                                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final messenger = ScaffoldMessenger.of(ctx);
+                                    final alertService = ctx.read<AlertService>();
+                                    final sensor = ctx.read<SensorService>();
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Capturing forensic snapshot to Vault...'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                    final photoPath = await safety.captureSilentPhoto();
+                                    if (photoPath != null) {
+                                      await alertService.recordLocalEvidenceAlert(
+                                        type: 'Snapshot Evidence',
+                                        latitude: sensor.latitude,
+                                        longitude: sensor.longitude,
+                                        evidenceUrls: [photoPath],
+                                      );
+                                    }
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(photoPath != null ? '✅ Snapshot recorded in Evidence Vault!' : 'Camera busy, try again'),
+                                        backgroundColor: photoPath != null ? AppColors.safe : AppColors.emergency,
+                                        action: photoPath != null
+                                            ? SnackBarAction(
+                                                label: 'View Vault',
+                                                textColor: Colors.white,
+                                                onPressed: () => Navigator.push(
+                                                  ctx,
+                                                  MaterialPageRoute(builder: (_) => const EvidenceScreen()),
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.camera_alt, size: 18),
+                                  label: const Text('Capture Snapshot to Vault'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Container(
+                            height: 120,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.videocam_outlined, size: 36, color: Colors.grey),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Front Camera is initializing for facial expression AI...',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 6),
+                                TextButton.icon(
+                                  onPressed: () => safety.initCameraManually(),
+                                  icon: const Icon(Icons.refresh, size: 16),
+                                  label: const Text('Start AI Camera'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // Evidence Vault Banner Card
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EvidenceScreen()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.lightCard,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.folder_special_rounded, color: AppColors.primary, size: 32),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Evidence Vault 📁',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'View captured front-camera photos, audio recordings & maps',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 28),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -318,22 +597,29 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
         decoration: BoxDecoration(
           color: Theme.of(context).cardTheme.color,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            value,
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: value,
+            ),
             const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).textTheme.bodySmall?.color,
-                )),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).textTheme.bodySmall?.color,
+              ),
+            ),
           ],
         ),
       ),

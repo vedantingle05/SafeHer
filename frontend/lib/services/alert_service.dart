@@ -3,7 +3,9 @@
 
 import 'package:flutter/foundation.dart';
 import '../models/data_models.dart';
+import 'dart:async';
 import 'api_service.dart';
+import 'evidence_vault_service.dart';
 
 /// Outcome of a /api/emergency call. Lets the UI render exact per-contact
 /// delivery information rather than a misleading "alert sent" toast.
@@ -77,7 +79,64 @@ class AlertService extends ChangeNotifier {
   String? _error;
   EmergencyDeliveryResult? _lastDelivery;
 
-  AlertService({required this.apiService});
+  AlertService({required this.apiService}) {
+    _loadInitialAlerts();
+  }
+
+  Future<void> _loadInitialAlerts() async {
+    final cached = await EvidenceVaultService.loadLocalAlerts();
+    if (cached.isNotEmpty) {
+      _alerts = cached;
+      notifyListeners();
+    }
+  }
+
+  /// Creates a local forensic evidence record immediately on device and saves to persistent storage.
+  /// Also kicks off background cloud upload to backend without blocking UI.
+  Future<AlertModel> recordLocalEvidenceAlert({
+    required String type,
+    required double latitude,
+    required double longitude,
+    required List<String> evidenceUrls,
+    double? confidence,
+  }) async {
+    final alert = AlertModel(
+      id: 'vault_${DateTime.now().millisecondsSinceEpoch}',
+      userId: 'local_user',
+      type: type,
+      location: AlertLocation(
+        latitude: latitude,
+        longitude: longitude,
+      ),
+      status: 'active',
+      confidence: confidence ?? 0.95,
+      evidenceUrls: List<String>.from(evidenceUrls),
+      createdAt: DateTime.now(),
+    );
+
+    // 1. Immediately insert at top of alerts list and persist to disk
+    _alerts.removeWhere((a) => a.id == alert.id);
+    _alerts.insert(0, alert);
+    await EvidenceVaultService.saveLocalAlerts(_alerts);
+    notifyListeners();
+
+    // 2. Background sync to cloud backend (non-blocking)
+    unawaited(() async {
+      try {
+        final res = await apiService.post('/alert', {
+          'type': type,
+          'location': {'latitude': latitude, 'longitude': longitude},
+          'confidence': confidence ?? 0.95,
+          'evidenceUrls': evidenceUrls,
+        });
+        debugPrint('☁️ Local vault alert synced to backend: ${res['data']?['id']}');
+      } catch (e) {
+        debugPrint('ℹ️ Alert stored locally, will sync when network is online: $e');
+      }
+    }());
+
+    return alert;
+  }
 
   // ──── Getters ────
   List<AlertModel> get alerts => _alerts;
@@ -91,13 +150,35 @@ class AlertService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // First load from local persistent storage so list is NEVER empty
+    final localCached = await EvidenceVaultService.loadLocalAlerts();
+    if (localCached.isNotEmpty && _alerts.isEmpty) {
+      _alerts = List.from(localCached);
+      notifyListeners();
+    }
+
     try {
       final response = await apiService.get('/alert?page=$page&limit=$limit');
       final alertsData = response['data']['alerts'] as List<dynamic>;
-      _alerts = alertsData.map((a) => AlertModel.fromJson(a)).toList();
+      final remoteAlerts = alertsData.map((a) => AlertModel.fromJson(a)).toList();
+
+      // Merge remote alerts with local alerts (keep local pending ones, update matching)
+      final Map<String, AlertModel> mergedMap = {};
+      for (final a in localCached) {
+        mergedMap[a.id] = a;
+      }
+      for (final r in remoteAlerts) {
+        mergedMap[r.id] = r;
+      }
+
+      final mergedList = mergedMap.values.toList();
+      mergedList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _alerts = mergedList;
+      await EvidenceVaultService.saveLocalAlerts(_alerts);
       _error = null;
     } catch (e) {
-      _error = 'Failed to load alerts.';
+      debugPrint('ℹ️ Using local evidence vault records (backend unavailable): $e');
+      _error = null;
     } finally {
       _isLoading = false;
       notifyListeners();

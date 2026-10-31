@@ -24,6 +24,7 @@ class PermissionService {
 
     await Permission.notification.request();
     await Permission.sms.request();
+    await Permission.phone.request();
 
     var location = await Geolocator.checkPermission();
     if (location == LocationPermission.denied) {

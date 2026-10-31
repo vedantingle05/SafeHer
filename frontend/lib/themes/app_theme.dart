@@ -16,6 +16,7 @@ class AppColors {
 
   static const Color lightBg = Color(0xFFFAFAFA);
   static const Color lightCard = Colors.white;
+  static const Color card = Colors.white;
   static const Color lightText = Color(0xFF212121);
   static const Color lightSubtext = Color(0xFF757575);
 
